@@ -1,0 +1,18 @@
+[project]
+name = "amazon-bsr-dashboard"
+version = "1.0.0"
+description = "Weekly Amazon Sorftime intelligence dashboard and production refresh pipeline."
+requires-python = ">=3.11"
+dependencies = [
+    "DBUtils>=3.0.0",
+    "charset-normalizer>=3.3,<3.4",
+    "pymysql>=1.1.1",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31,<2.34",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

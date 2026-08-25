@@ -1,7 +1,7 @@
-(() => {
+(async () => {
   "use strict";
 
-  const data = window.DASHBOARD_DATA;
+  const data = await loadDashboardData(window.DASHBOARD_DATA);
   const state = {
     platform: data.defaultPlatform,
     week: null,
@@ -58,6 +58,7 @@
     marketplaceScope: document.querySelector("#marketplaceScope"),
     fieldCoverageNote: document.querySelector("#fieldCoverageNote"),
     footerTitle: document.querySelector("#footerTitle"),
+    footerStatus: document.querySelector("#footerStatus"),
     toast: document.querySelector("#toast"),
     floatingGuide: document.querySelector("#floatingGuide"),
     guideToggle: document.querySelector("#guideToggle"),
@@ -83,6 +84,22 @@
     const source = platform();
     const selectedWeek = week();
     const weekIndex = source.weeks.findIndex((item) => item.key === selectedWeek.key);
+    if (selectedWeek.snapshot) {
+      const snapshot = selectedWeek.snapshot;
+      const categories = snapshot.categories.map((item) => ({
+        ...item,
+        rankHistory: runtimeRankHistory(source.weeks, weekIndex, item.name, item.rank || 1),
+      }));
+      return {
+        meta: { ...snapshot.meta, reportDate: selectedWeek.key, previousDate: selectedWeek.previous },
+        groups: snapshot.groups.map((item) => ({ ...item })),
+        categories,
+        movements: snapshot.movements.map((item) => ({ ...item, isFresh: item.listingDays <= 90 })),
+        ownProducts: snapshot.ownProducts.map((item) => ({ ...item })),
+        week: selectedWeek,
+        platform: source,
+      };
+    }
     const base = source.base;
     const priceFactor = 1 - weekIndex * 0.006;
     const recordTotal = base.meta.records + selectedWeek.recordDelta;
@@ -144,6 +161,34 @@
     };
   }
 
+  async function loadDashboardData(fallback) {
+    fallback.runtimePlatforms = [];
+    try {
+      const response = await fetch("./data/dashboard-data.json", { cache: "no-store" });
+      if (!response.ok) return fallback;
+      const runtime = await response.json();
+      Object.entries(runtime.platforms || {}).forEach(([key, payload]) => {
+        if (!fallback.platforms[key] || !Array.isArray(payload.weeks) || !payload.weeks.length) return;
+        fallback.platforms[key].weeks = payload.weeks;
+        fallback.runtimePlatforms.push(key);
+      });
+    } catch (error) {
+      console.warn("Dashboard runtime data unavailable; using bundled demo data.", error);
+    }
+    return fallback;
+  }
+
+  function runtimeRankHistory(weeks, weekIndex, categoryName, fallbackRank) {
+    const history = weeks
+      .slice(weekIndex, weekIndex + 6)
+      .reverse()
+      .map((item) => item.snapshot?.categories?.find((category) => category.name === categoryName)?.rank)
+      .filter((rank) => Number.isFinite(rank));
+    if (!history.length) return Array(6).fill(fallbackRank);
+    while (history.length < 6) history.unshift(history[0]);
+    return history.slice(-6);
+  }
+
   function selectedCategories(report) {
     return report.categories.filter(
       (item) =>
@@ -201,7 +246,11 @@
     els.fieldCoverageNote.textContent = state.platform === "amazon"
       ? "字段覆盖：价格、评分、月销、上架时间"
       : "演示字段：价格、上架时间待正式采集链路补齐";
-    els.footerTitle.textContent = `${source.name} Weekly Intelligence · Prototype`;
+    const runtimeActive = data.runtimePlatforms?.includes(state.platform);
+    els.footerTitle.textContent = `${source.name} Weekly Intelligence · ${runtimeActive ? "Live" : "Demo"}`;
+    els.footerStatus.textContent = runtimeActive
+      ? `正式数据 · 最近发布 ${report.week.key}`
+      : state.platform === "taotian" ? "淘天正式采集链路待接入" : "当前使用内置演示数据";
   }
 
   function fillWeekOptions() {
@@ -394,7 +443,7 @@
     } else {
       els.movementRows.innerHTML = visible.map((item) => tableRow(report, item)).join("");
     }
-    els.rowCount.textContent = `显示 ${visible.length} / ${rows.length} 条演示异动`;
+    els.rowCount.textContent = `显示 ${visible.length} / ${rows.length} 条商品异动`;
     const freshCount = rows.filter((item) => item.isFresh).length;
     els.freshOpportunityCount.textContent = freshCount ? `${freshCount} 个近 90 天上架机会款` : "当前筛选暂无近 90 天新品";
     els.movementRows.closest("table").classList.toggle("has-row-focus", Boolean(state.selectedMovement));
