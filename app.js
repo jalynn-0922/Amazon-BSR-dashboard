@@ -94,7 +94,10 @@
         meta: { ...snapshot.meta, reportDate: selectedWeek.key, previousDate: selectedWeek.previous },
         groups: snapshot.groups.map((item) => ({ ...item })),
         categories,
-        movements: snapshot.movements.map((item) => ({ ...item, isFresh: item.listingDays <= 90 })),
+        movements: snapshot.movements.map((item) => ({
+          ...item,
+          isFresh: Number.isFinite(item.listingDays) && item.listingDays <= 90,
+        })),
         ownProducts: snapshot.ownProducts.map((item) => ({ ...item })),
         week: selectedWeek,
         platform: source,
@@ -211,7 +214,7 @@
   }
 
   function isAttention(item) {
-    const lowRatedFastRiser = item.type === "上升" && item.rating < 4;
+    const lowRatedFastRiser = item.type === "上升" && Number.isFinite(item.rating) && item.rating < 4;
     const largeRankMove = item.change !== null && Math.abs(item.change) >= 30;
     return item.isFresh || lowRatedFastRiser || largeRankMove;
   }
@@ -238,19 +241,21 @@
     els.searchInput.placeholder = state.platform === "amazon" ? "例如 ULANZI、B0..." : "例如 ULANZI、商品 ID...";
     els.salesHeader.textContent = source.salesLabel;
     els.recordHint.textContent = `共 ${number.format(report.meta.records)} 条结构化记录`;
-    els.topProductDescription.textContent = `每个细分类目的榜首商品，补充价格、上架时间与本周排名表现。`;
+    els.topProductDescription.textContent = state.platform === "amazon"
+      ? "每个细分类目的榜首商品，补充价格、上架时间与本周排名表现。"
+      : "每个细分类目的榜首商品，展示店铺、商品链接与本周排名表现。";
     els.pipelineSource.textContent = state.platform === "amazon" ? "Sorftime API" : "淘天榜单采集";
     els.pipelineSourceDetail.textContent = state.platform === "amazon" ? "Top 100 原始数据" : "类目榜单与商品快照";
-    els.dataFrequency.textContent = `数据频率：${state.platform === "amazon" ? "每周三数据，周五发布" : "每周采集并生成快照"}`;
+    els.dataFrequency.textContent = `数据频率：${state.platform === "amazon" ? "每周三数据，周五发布" : "每周一数据，周五统一发布"}`;
     els.marketplaceScope.textContent = `样本范围：${source.marketplace} · ${report.meta.categories} 个细分类目`;
     els.fieldCoverageNote.textContent = state.platform === "amazon"
       ? "字段覆盖：价格、评分、月销、上架时间"
-      : "演示字段：价格、上架时间待正式采集链路补齐";
+      : "字段覆盖：排名、异动、店铺、商品链接、商品图片；价格、评分、销量、上架时间源表暂无";
     const runtimeActive = data.runtimePlatforms?.includes(state.platform);
     els.footerTitle.textContent = `${source.name} Weekly Intelligence · ${runtimeActive ? "Live" : "Demo"}`;
     els.footerStatus.textContent = runtimeActive
       ? `正式数据 · 最近发布 ${report.week.key}`
-      : state.platform === "taotian" ? "淘天正式采集链路待接入" : "当前使用内置演示数据";
+      : state.platform === "taotian" ? "当前使用淘天内置演示数据" : "当前使用内置演示数据";
   }
 
   function fillWeekOptions() {
@@ -301,11 +306,12 @@
     const records = currentGroups.reduce((sum, item) => sum + item.records, 0);
     const imageCount = currentGroups.reduce((sum, item) => sum + item.images, 0);
     const opportunities = movements.filter((item) => item.type !== "下降").length;
-    const topSales = categories.reduce((sum, item) => sum + item.topSales, 0);
+    const salesValues = categories.map((item) => item.topSales).filter(Number.isFinite);
+    const topSales = salesValues.reduce((sum, value) => sum + value, 0);
     const cards = [
       ["结构化记录", number.format(records), "条", `已汇总 ${currentGroups.length} 个类目组`, "▦", "#0b6b4b", "#eaf7f1"],
       ["当前覆盖类目", categories.length, "个", state.category === "all" ? "支持按类目快速下钻" : "已定位到单一细分类目", "◎", "#5f83c1", "#eef4ff"],
-      [`Top 1 ${report.platform.salesLabel}合计`, compactNumber(topSales), "件", `基于当前周次头部商品`, "↗", "#e27846", "#fff0e8"],
+      [`Top 1 ${report.platform.salesLabel}合计`, salesValues.length ? compactNumber(topSales) : "—", salesValues.length ? "件" : "", salesValues.length ? "基于当前周次头部商品" : "当前源表未采集销量", "↗", "#e27846", "#fff0e8"],
       ["机会信号", opportunities, "条", `<em>${imageCount} 张图片</em>已进入结构化字段`, "✦", "#607c0f", "#f0facf"],
     ];
     els.kpiGrid.innerHTML = cards
@@ -388,7 +394,7 @@
       })
       .join("");
     const lowRatingRise = movements
-      .filter((item) => item.type === "上升" && item.rating < 4.0)
+      .filter((item) => item.type === "上升" && Number.isFinite(item.rating) && item.rating < 4.0)
       .sort((a, b) => (b.change || 0) - (a.change || 0));
     els.signalCallout.classList.toggle("has-products", Boolean(lowRatingRise.length));
     els.signalCallout.innerHTML = lowRatingRise.length
@@ -423,11 +429,11 @@
               <h3 title="${item.title}">${item.title}</h3>
               <div class="seller-line"><strong>${seller}</strong><span>本周 ${movement}</span></div>
               <div class="product-metrics">
-                <span>${report.platform.salesLabel}<strong>${number.format(item.topSales)}</strong></span>
+                <span>${report.platform.salesLabel}<strong>${formatOptionalNumber(item.topSales)}</strong></span>
                 <span>价格<strong>${formatMoney(report.platform, item.price)}</strong></span>
-                <span>评分<strong>★ ${item.rating}</strong></span>
+                <span>评分<strong>${formatRating(item.rating)}</strong></span>
               </div>
-              <div class="listing-line"><span>上架 ${item.listedAt}</span><strong>${item.listingDays} 天</strong></div>
+              <div class="listing-line">${listingText(item)}</div>
               <div class="trend-hint"><span class="material-symbols-rounded">show_chart</span>悬停查看近 6 周排名稳定性</div>
             </div>
           </article>`;
@@ -469,9 +475,9 @@
         <td><strong>#${item.rank}</strong>${item.previousRank ? ` <span class="previous-rank">← #${item.previousRank}</span>` : ""}</td>
         <td><span class="change-pill ${style}">${change}</span></td>
         <td><strong class="price-cell">${formatMoney(report.platform, item.price)}</strong></td>
-        <td>${number.format(item.sales)}</td>
-        <td><span class="listing-cell"><strong>${item.listedAt}</strong><small>${item.listingDays} 天</small>${item.isFresh ? `<em>新品机会</em>` : ""}</span></td>
-        <td>★ ${item.rating.toFixed(1)}</td>
+        <td>${formatOptionalNumber(item.sales)}</td>
+        <td><span class="listing-cell">${listingCell(item)}</span></td>
+        <td>${formatRating(item.rating)}</td>
         <td><span class="action-pill">${action}</span></td>
       </tr>`;
   }
@@ -484,12 +490,13 @@
     );
     const source = scoped.length ? scoped : report.ownProducts;
     const visible = [...source].sort((a, b) => b.change - a.change).slice(0, 5);
-    const totalSales = source.reduce((sum, item) => sum + item.sales, 0);
+    const salesValues = source.map((item) => item.sales).filter(Number.isFinite);
+    const totalSales = salesValues.reduce((sum, value) => sum + value, 0);
     const best = [...source].sort((a, b) => b.change - a.change)[0];
     els.ulanziStats.innerHTML = [
       [source.length, "监测本品"],
       [`+${best ? best.change : 0}`, "最大升幅"],
-      [compactNumber(totalSales), report.platform.salesLabel],
+      [salesValues.length ? compactNumber(totalSales) : "—", report.platform.salesLabel],
     ].map(([value, label]) => `<div class="ulanzi-stat"><strong>${value}</strong><span>${label}</span></div>`).join("");
     els.strategyText.textContent = state.platform === "amazon"
       ? "优先复盘支架与灯光上升款，结合关键词、价格与促销节奏定位增长来源。"
@@ -498,9 +505,9 @@
       .map((item) => `
         <a class="own-product-row" href="${productUrl(report.platform, item)}" target="_blank" rel="noreferrer">
           <img src="${item.image}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
-          <span class="own-copy"><strong>${item.title}</strong><span>${item.category} · ${item.asin} · 上架 ${item.listingDays} 天</span></span>
-          <span class="own-sales">${report.platform.salesLabel}<strong>${number.format(item.sales)}</strong></span>
-          <span class="own-change">↑ ${item.change}</span>
+          <span class="own-copy"><strong>${item.title}</strong><span>${item.category} · ${item.asin} · ${Number.isFinite(item.listingDays) ? `上架 ${item.listingDays} 天` : "上架时间暂无"}</span></span>
+          <span class="own-sales">${report.platform.salesLabel}<strong>${formatOptionalNumber(item.sales)}</strong></span>
+          <span class="own-change">${Number.isFinite(item.change) ? `${item.change > 0 ? "↑" : "↓"} ${Math.abs(item.change)}` : "NEW"}</span>
         </a>`)
       .join("");
   }
@@ -685,7 +692,26 @@
     return number.format(value);
   }
 
+  function formatOptionalNumber(value) {
+    return Number.isFinite(value) ? number.format(value) : "—";
+  }
+
+  function formatRating(value) {
+    return Number.isFinite(value) ? `★ ${value.toFixed(1)}` : "—";
+  }
+
+  function listingText(item) {
+    if (!Number.isFinite(item.listingDays) || !item.listedAt) return "<span>上架时间</span><strong>—</strong>";
+    return `<span>上架 ${item.listedAt}</span><strong>${item.listingDays} 天</strong>`;
+  }
+
+  function listingCell(item) {
+    if (!Number.isFinite(item.listingDays) || !item.listedAt) return "<strong>—</strong><small>源表暂无</small>";
+    return `<strong>${item.listedAt}</strong><small>${item.listingDays} 天</small>${item.isFresh ? `<em>新品机会</em>` : ""}`;
+  }
+
   function formatMoney(source, value) {
+    if (!Number.isFinite(value)) return "—";
     return new Intl.NumberFormat(source.currency === "USD" ? "en-US" : "zh-CN", {
       style: "currency",
       currency: source.currency,

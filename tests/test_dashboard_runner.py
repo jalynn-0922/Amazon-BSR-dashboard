@@ -25,6 +25,14 @@ def test_wednesday_uses_previous_completed_week():
     assert runner.recent_finished_wednesday(date(2026, 8, 19)) == date(2026, 8, 12)
 
 
+def test_recent_finished_monday_from_friday():
+    assert runner.recent_finished_monday(date(2026, 8, 21)) == date(2026, 8, 17)
+
+
+def test_monday_uses_previous_completed_week():
+    assert runner.recent_finished_monday(date(2026, 8, 17)) == date(2026, 8, 10)
+
+
 def test_non_wednesday_report_date_is_rejected():
     try:
         runner.parse_report_date("2026-08-20")
@@ -32,3 +40,12 @@ def test_non_wednesday_report_date_is_rejected():
         assert "must be Wednesday" in str(exc)
     else:
         raise AssertionError("expected non-Wednesday date to fail")
+
+
+def test_non_monday_taotian_date_is_rejected():
+    try:
+        runner.parse_taotian_date("2026-08-19")
+    except ValueError as exc:
+        assert "must be Monday" in str(exc)
+    else:
+        raise AssertionError("expected non-Monday date to fail")

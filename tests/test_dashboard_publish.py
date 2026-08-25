@@ -54,6 +54,20 @@ def sample_week(key: str = "2026-08-19", marker: str = "first") -> dict:
     }
 
 
+def sample_taotian_week() -> dict:
+    week = sample_week("2026-08-17", "taotian")
+    week["snapshot"]["groups"] = [
+        {"name": "灯光类", "categories": 4, "records": 400, "images": 300},
+        {"name": "支架与脚架类", "categories": 5, "records": 500, "images": 400},
+    ]
+    week["snapshot"]["categories"] = [
+        {"group": "灯光类" if index < 4 else "支架与脚架类", "name": f"tt-{index}", "asin": f"TT{index}", "title": f"taotian-{index}", "rank": 1}
+        for index in range(9)
+    ]
+    week["snapshot"]["meta"] = {"groups": 2, "categories": 9, "records": 900, "images": 700}
+    return week
+
+
 def test_merge_replaces_same_week_and_keeps_newest():
     current = {"schemaVersion": 1, "platforms": {"amazon": {"weeks": [sample_week(marker="old")]}}}
     merged = publish.merge_runtime(current, "amazon", sample_week(marker="new"), "now", 12)
@@ -104,3 +118,10 @@ def test_atomic_publish_outputs_valid_runtime(tmp_path: Path):
     runtime = json.loads(target.read_text(encoding="utf-8"))
     assert runtime["platforms"]["amazon"]["weeks"][0]["key"] == "2026-08-19"
     assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+
+def test_taotian_snapshot_merges_without_touching_amazon():
+    current = {"schemaVersion": 1, "platforms": {"amazon": {"weeks": [sample_week()]}}}
+    merged = publish.merge_runtime(current, "taotian", sample_taotian_week(), "now", 12)
+    assert merged["platforms"]["amazon"]["weeks"][0]["key"] == "2026-08-19"
+    assert merged["platforms"]["taotian"]["weeks"][0]["key"] == "2026-08-17"

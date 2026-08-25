@@ -16,6 +16,12 @@ class PublishError(ValueError):
     """Raised when a snapshot or runtime file is invalid."""
 
 
+PLATFORM_SHAPES = {
+    "amazon": (5, 12),
+    "taotian": (2, 9),
+}
+
+
 def read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -28,7 +34,10 @@ def read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def validate_week(week: dict[str, Any]) -> None:
+def validate_week(week: dict[str, Any], platform: str = "amazon") -> None:
+    if platform not in PLATFORM_SHAPES:
+        raise PublishError(f"unsupported platform: {platform!r}")
+    expected_groups, expected_categories = PLATFORM_SHAPES[platform]
     for field in ("key", "label", "previous", "highlights", "snapshot"):
         if field not in week:
             raise PublishError(f"week missing field: {field}")
@@ -38,11 +47,11 @@ def validate_week(week: dict[str, Any]) -> None:
     groups = snapshot.get("groups") or []
     categories = snapshot.get("categories") or []
     movements = snapshot.get("movements") or []
-    if len(groups) != 5:
-        raise PublishError(f"expected 5 groups, got {len(groups)}")
-    if len(categories) != 12:
-        raise PublishError(f"expected 12 categories, got {len(categories)}")
-    if len({item.get('name') for item in categories}) != 12:
+    if len(groups) != expected_groups:
+        raise PublishError(f"expected {expected_groups} groups, got {len(groups)}")
+    if len(categories) != expected_categories:
+        raise PublishError(f"expected {expected_categories} categories, got {len(categories)}")
+    if len({item.get('name') for item in categories}) != expected_categories:
         raise PublishError("category names must be unique")
     if not movements:
         raise PublishError("movement list cannot be empty")
@@ -51,20 +60,20 @@ def validate_week(week: dict[str, Any]) -> None:
             if not item.get("asin") or not item.get("title"):
                 raise PublishError(f"{collection_name} product missing asin/title")
     meta = snapshot.get("meta") or {}
-    if meta.get("groups") != 5 or meta.get("categories") != 12:
-        raise PublishError("snapshot meta does not match 5 groups/12 categories")
+    if meta.get("groups") != expected_groups or meta.get("categories") != expected_categories:
+        raise PublishError(f"snapshot meta does not match {expected_groups} groups/{expected_categories} categories")
 
 
 def validate_input(payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     if payload.get("schemaVersion") != 1:
         raise PublishError("snapshot schemaVersion must be 1")
     platform = payload.get("platform")
-    if platform != "amazon":
+    if platform not in PLATFORM_SHAPES:
         raise PublishError(f"unsupported platform: {platform!r}")
     week = payload.get("week")
     if not isinstance(week, dict):
         raise PublishError("snapshot week must be an object")
-    validate_week(week)
+    validate_week(week, platform)
     return platform, week
 
 
@@ -83,7 +92,7 @@ def merge_runtime(
     platform_payload = dict(platforms.get(platform) or {})
     weeks = list(platform_payload.get("weeks") or [])
     for existing in weeks:
-        validate_week(existing)
+        validate_week(existing, platform)
     weeks = [existing for existing in weeks if existing.get("key") != week["key"]]
     weeks.append(week)
     weeks.sort(key=lambda item: item["key"], reverse=True)

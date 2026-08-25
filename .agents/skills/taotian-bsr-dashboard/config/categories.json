@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "categories": [
+    {
+      "key": "live_photo_flash",
+      "secondary": "直播/摄影配件",
+      "tertiary": "闪光灯 > 相机闪光灯",
+      "display_tertiary": "闪光灯 > 相机闪光灯",
+      "view_name": "闪光灯 > 相机闪光灯"
+    },
+    {
+      "key": "studio_light",
+      "secondary": "直播/摄影配件",
+      "tertiary": "影棚设备 > 影室灯",
+      "display_tertiary": "影棚设备 > 影室灯",
+      "view_name": "影棚设备 > 影室灯"
+    },
+    {
+      "key": "outdoor_light",
+      "secondary": "直播/摄影配件",
+      "tertiary": "影棚设备 > 外拍灯",
+      "display_tertiary": "影棚设备 > 外拍灯",
+      "view_name": "影棚设备 > 外拍灯"
+    },
+    {
+      "key": "phone_live_fill_light",
+      "secondary": "手机配件",
+      "tertiary": "手机直播配件 > 手机直播补光灯",
+      "display_tertiary": "手机直播配件 > 手机直播补光灯",
+      "view_name": "手机直播配件 > 手机直播补光灯"
+    },
+    {
+      "key": "phone_stand",
+      "secondary": "手机配件",
+      "tertiary": "手机支架/手机座",
+      "display_tertiary": "手机支架/手机座",
+      "view_name": "手机支架/手机座"
+    },
+    {
+      "key": "live_streaming_stand",
+      "secondary": "手机配件",
+      "tertiary": "手机直播配件 > 直播专用支架",
+      "display_tertiary": "手机直播配件 > 直播专用支架",
+      "view_name": "手机直播配件 > 直播专用支架"
+    },
+    {
+      "key": "selfie_stick",
+      "secondary": "手机配件",
+      "tertiary": "手机拍照配件 > 自拍杆/架",
+      "display_tertiary": "手机拍照配件 > 自拍杆/架",
+      "view_name": "手机拍照配件 > 自拍杆/架"
+    },
+    {
+      "key": "tripod",
+      "secondary": "直播/摄影配件",
+      "tertiary": "脚架/云台 > 脚架",
+      "display_tertiary": "脚架/云台 > 脚架",
+      "view_name": "脚架/云台 > 脚架"
+    },
+    {
+      "key": "camera_accessory",
+      "secondary": "摄像机配件",
+      "tertiary": "",
+      "display_tertiary": "—",
+      "view_name": "摄像机配件"
+    }
+  ]
+}

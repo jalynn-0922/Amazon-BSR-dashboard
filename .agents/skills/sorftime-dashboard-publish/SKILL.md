@@ -1,16 +1,16 @@
 ---
 name: sorftime-dashboard-publish
-description: 校验并发布 Sorftime 周度结构化快照到 Amazon BSR 看板；用于替代飞书 Base/docx 发布，不负责采集或修改 Doris 数据。
+description: 校验并发布 Amazon 或淘天周度结构化快照到统一 BSR 看板；用于替代飞书 Base/docx 发布，不负责采集或修改 Doris 数据。
 ---
 
 # Sorftime 看板发布
 
-将 `sorftime-weekly-report` 生成的单周 JSON 快照合并到看板运行时数据文件。
+将 Amazon `sorftime-weekly-report` 或淘天 `taotian-bsr-dashboard` 生成的单周 JSON 快照合并到看板运行时数据文件。
 
 ## 边界
 
 - 输入必须是已落盘的单周快照；本 Skill 不连接 Sorftime、Doris 或飞书。
-- 发布前校验 5 个报告组、12 个叶子类目、商品主键及核心集合。
+- 发布前按平台校验结构：Amazon 5 组/12 类目，淘天 2 组/9 类目，并校验商品主键及核心集合。
 - 同一日期重跑时替换该周，不产生重复周次。
 - 只保留配置数量的历史周次，默认 12 周。
 - 先在同目录写临时文件并 `fsync`，校验完成后再原子替换正式 JSON；任何失败都保留上一版。
