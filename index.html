@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Amazon 与淘天跨平台周度市场情报看板 Demo：支持周次切换、趋势、异动与 ULANZI 本品表现。"
+    />
+    <title>跨平台 BSR 周度市场情报看板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="main-content">
+        <header class="topbar">
+          <a class="top-brand" href="#overview" aria-label="返回市场概览">
+            <img src="https://www.ulanzi.com/cdn/shop/files/9c2b208736ad87551dbc346f25f56828.png?v=1761725836&amp;width=500" alt="ULANZI" />
+            <span><strong>ULANZI Market Pulse</strong><small id="brandSubtitle">Cross-channel Intelligence</small></span>
+          </a>
+          <div class="top-snapshot"><i></i><span id="sideSnapshot">2026-08-12 · Amazon US</span></div>
+          <div class="top-actions">
+            <span class="update-status"><i></i> 数据已更新</span>
+            <button class="button ghost" id="downloadCsv">下载数据</button>
+            <button
+              class="button primary"
+              id="attentionWatchlist"
+              title="新品、低评分快速上升或单周排名变化不少于 30 位"
+            >本周待关注</button>
+          </div>
+        </header>
+
+        <div class="dashboard">
+          <section class="report-context" id="overview" aria-label="报告范围选择">
+            <div class="context-copy">
+              <span>当前报告</span>
+              <strong>切换平台与周次，查看对应市场快照</strong>
+            </div>
+            <div class="platform-switch" id="platformSwitch" role="tablist" aria-label="电商平台">
+              <button class="active" data-platform="amazon" role="tab">Amazon</button>
+              <button data-platform="taotian" role="tab">淘天</button>
+            </div>
+            <div class="week-picker">
+              <label for="weekFilter">报告周次</label>
+              <select id="weekFilter"></select>
+            </div>
+          </section>
+
+          <section class="hero">
+            <div>
+              <div class="eyebrow">WEEKLY MARKET INTELLIGENCE · DEMO</div>
+              <h1 id="reportTitle">Amazon BSR 周度市场情报</h1>
+              <p id="reportDescription">从 5 大类、12 个细分类目中快速识别增长机会、排名异动与本品表现。</p>
+            </div>
+            <div class="report-period">
+              <span>本期报告</span>
+              <strong id="reportRange">2026.08.06 — 08.12</strong>
+              <small id="previousDate">较上周 · 2026.08.05</small>
+            </div>
+          </section>
+
+          <section class="filter-panel" aria-label="数据筛选">
+            <div class="filter-group">
+              <label for="groupFilter">业务大类</label>
+              <select id="groupFilter">
+                <option value="all">全部 5 大类</option>
+              </select>
+            </div>
+            <div class="filter-group wide">
+              <label for="categoryFilter">细分类目</label>
+              <select id="categoryFilter">
+                <option value="all">全部 12 个类目</option>
+              </select>
+            </div>
+            <div class="filter-group search-group">
+              <label for="searchInput" id="searchLabel">搜索品牌 / ASIN</label>
+              <div class="search-box">
+                <span>⌕</span>
+                <input id="searchInput" type="search" placeholder="例如 ULANZI、B0..." />
+              </div>
+            </div>
+            <button class="reset-button" id="resetFilters">重置</button>
+          </section>
+
+          <section class="kpi-grid" id="kpiGrid" aria-label="核心指标"></section>
+
+          <section class="weekly-highlights" id="weeklyHighlights">
+            <div class="highlight-header">
+              <div class="highlight-title">
+                <span class="highlight-icon">H</span>
+                <div>
+                  <span class="section-label">WEEKLY HIGHLIGHTS</span>
+                  <h2 id="highlightTitle">本周 Amazon 报告速览</h2>
+                </div>
+              </div>
+              <span class="highlight-period" id="highlightPeriod">2026.08.06 — 08.12</span>
+            </div>
+            <div class="highlight-lead" id="highlightLead"></div>
+            <div class="highlight-grid" id="highlightGrid"></div>
+            <div class="highlight-footer">
+              <span>基于当前周次与筛选范围自动更新</span>
+              <a href="#movements">查看异动明细 →</a>
+            </div>
+          </section>
+
+          <section class="analytics-grid" id="categories">
+            <article class="panel category-panel">
+              <div class="panel-header">
+                <div>
+                  <span class="section-label">CATEGORY PULSE</span>
+                  <h2>大类数据规模</h2>
+                </div>
+                <span class="panel-hint" id="recordHint">共 640 条结构化记录</span>
+              </div>
+              <div class="bar-chart" id="groupChart"></div>
+              <div class="chart-legend">
+                <span><i class="legend-dot records"></i>周报结构化记录</span>
+                <span><i class="legend-dot images"></i>商品图片数</span>
+              </div>
+            </article>
+
+            <article class="panel signal-panel">
+              <div class="panel-header">
+                <div>
+                  <span class="section-label">SIGNAL MIX</span>
+                  <h2>异动信号分布</h2>
+                </div>
+                <button class="icon-button" id="signalHelp" aria-label="信号说明">?</button>
+              </div>
+              <div class="signal-content">
+                <div class="donut" id="signalDonut" role="group" tabindex="0" aria-label="点击环形图扇区筛选异动信号">
+                  <div><strong id="signalTotal">0</strong><span id="signalTotalLabel">重点信号</span></div>
+                </div>
+                <div class="signal-list" id="signalList"></div>
+              </div>
+              <div class="callout" id="signalCallout"></div>
+            </article>
+          </section>
+
+          <section class="section-block" id="top-products">
+            <div class="section-heading">
+              <div>
+                <span class="section-label">TOP CATEGORY PRODUCTS</span>
+                <h2>类目头部商品</h2>
+                <p id="topProductDescription">每个细分类目的 BSR #1 商品，补充价格、上架时间与周度表现。</p>
+              </div>
+              <div class="scroll-actions">
+                <button id="scrollPrev" aria-label="向前浏览">←</button>
+                <button id="scrollNext" aria-label="向后浏览">→</button>
+              </div>
+            </div>
+            <div class="product-strip" id="productStrip"></div>
+          </section>
+
+          <section class="panel movement-panel" id="movements">
+            <div class="panel-header movement-header">
+              <div>
+                <span class="section-label">MOVEMENT WATCHLIST</span>
+                <h2>重点商品异动</h2>
+                <span class="fresh-opportunity-count" id="freshOpportunityCount" title="新品机会定义：上架不超过 90 天"></span>
+              </div>
+              <div class="signal-tabs" id="signalTabs" role="tablist">
+                <button class="active" data-signal="all">全部</button>
+                <button data-attention="true">待关注</button>
+                <button data-signal="上升">强势上升</button>
+                <button data-signal="下降">明显下降</button>
+                <button data-signal="新上榜">新上榜</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>商品</th>
+                    <th>大类 / 细分类目</th>
+                    <th>异动类型</th>
+                    <th>本周排名</th>
+                    <th>排名变化</th>
+                    <th>价格</th>
+                    <th id="salesHeader">月销</th>
+                    <th>上架时间</th>
+                    <th>评分</th>
+                    <th>建议关注</th>
+                  </tr>
+                </thead>
+                <tbody id="movementRows"></tbody>
+              </table>
+            </div>
+            <div class="table-footer">
+              <span id="rowCount">显示 0 条</span>
+              <button id="showMore">查看更多</button>
+            </div>
+          </section>
+
+          <section class="ulanzi-grid" id="ulanzi">
+            <article class="ulanzi-summary">
+              <img class="ulanzi-brand-mark" src="https://www.ulanzi.com/cdn/shop/files/9c2b208736ad87551dbc346f25f56828.png?v=1761725836&amp;width=500" alt="ULANZI 品牌标识" />
+              <span class="section-label light">ULANZI OWN BRAND</span>
+              <h2>本品增长雷达</h2>
+              <p>将原周报中的“ULANZI 本品专题”集中成可执行的产品观察清单。</p>
+              <div class="ulanzi-stats" id="ulanziStats"></div>
+              <div class="strategy-note">
+                <span>本周建议</span>
+                <strong id="strategyText">优先复盘 Camera Mounts &amp; Clamps 上升款，验证流量来源与转化承接。</strong>
+              </div>
+            </article>
+            <article class="panel own-products">
+              <div class="panel-header">
+                <div>
+                  <span class="section-label">FAST MOVERS</span>
+                  <h2>本品上升最快</h2>
+                </div>
+                <span class="panel-hint">按排名提升排序</span>
+              </div>
+              <div id="ownProductList"></div>
+            </article>
+          </section>
+
+          <section class="method-panel" id="method">
+            <div class="method-copy">
+              <span class="section-label">DATA PIPELINE</span>
+              <h2>数据如何进入看板</h2>
+              <p>
+                看板直接消费结构化周度数据。图片 URL 在数据清洗阶段统一校验并作为字段写入，前端只负责展示；不再依赖人工给多维表格逐条配置图片。
+              </p>
+            </div>
+            <div class="pipeline" aria-label="数据处理流程">
+              <div><i>01</i><strong id="pipelineSource">Sorftime API</strong><span id="pipelineSourceDetail">Top 100 原始数据</span></div>
+              <b>→</b>
+              <div><i>02</i><strong>Doris</strong><span>清洗与历史快照</span></div>
+              <b>→</b>
+              <div><i>03</i><strong>指标计算</strong><span>排名 / 销量 / 异动</span></div>
+              <b>→</b>
+              <div><i>04</i><strong>Dashboard</strong><span>筛选 / 查看 / 下载</span></div>
+            </div>
+            <div class="method-footnotes">
+              <span id="dataFrequency">数据频率：每周三数据，周五发布</span>
+              <span id="marketplaceScope">样本范围：Amazon US · 各类目 Top 100</span>
+              <span>操作：本周待关注 + 下载 CSV 明细</span>
+              <span id="fieldCoverageNote">字段覆盖：价格、评分、月销、上架时间</span>
+            </div>
+          </section>
+
+          <footer>
+            <span id="footerTitle">Amazon BSR Weekly Intelligence · Prototype</span>
+            <span>Demo 数据仅用于呈现形式评审</span>
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <nav class="floating-guide" id="floatingGuide" aria-label="页面模块导航">
+      <button class="guide-toggle" id="guideToggle" type="button" aria-expanded="true" aria-label="收起页面导航">
+        <span class="material-symbols-rounded">menu_open</span>
+      </button>
+      <div class="guide-items">
+        <a class="guide-link active" href="#overview" data-section="overview" aria-label="市场概览"><span class="material-symbols-rounded">space_dashboard</span><span class="guide-label">市场概览</span></a>
+        <a class="guide-link" href="#categories" data-section="categories" aria-label="类目雷达"><span class="material-symbols-rounded">bar_chart_4_bars</span><span class="guide-label">类目雷达</span></a>
+        <a class="guide-link" href="#top-products" data-section="top-products" aria-label="头部商品"><span class="material-symbols-rounded">trophy</span><span class="guide-label">头部商品</span></a>
+        <a class="guide-link" href="#movements" data-section="movements" aria-label="商品异动"><span class="material-symbols-rounded">moving</span><span class="guide-label">商品异动</span></a>
+        <a class="guide-link" href="#ulanzi" data-section="ulanzi" aria-label="本品表现"><span class="material-symbols-rounded">target</span><span class="guide-label">本品表现</span></a>
+        <a class="guide-link" href="#method" data-section="method" aria-label="数据说明"><span class="material-symbols-rounded">database</span><span class="guide-label">数据说明</span></a>
+      </div>
+    </nav>
+
+    <aside class="trend-popover" id="trendPopover" role="tooltip" hidden>
+      <div class="trend-popover-head">
+        <div><span>近 6 周排名趋势</span><strong id="trendTitle"></strong></div>
+        <span class="trend-stability" id="trendStability"></span>
+      </div>
+      <canvas id="trendCanvas" width="340" height="150" aria-label="商品近六周排名趋势图"></canvas>
+      <div class="trend-foot"><span>排名越靠上越好</span><strong id="trendRange"></strong></div>
+    </aside>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./data.js?v=7"></script>
+    <script src="./app.js?v=7"></script>
+  </body>
+</html>
