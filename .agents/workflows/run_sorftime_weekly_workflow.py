@@ -88,12 +88,13 @@ def preflight(args: argparse.Namespace) -> int:
     for step in steps: print(json.dumps(asdict(step), ensure_ascii=False))
     return int(any(step.status == "failed" for step in steps))
 
-def platform_pipeline(platform: str, report_date: date, args: argparse.Namespace) -> list[Step]:
+def platform_pipeline(platform: str, report_date: date | None, args: argparse.Namespace) -> list[Step]:
     is_amazon = platform == "amazon"
     sync_script = AMAZON_SYNC if is_amazon else TAOTIAN_SYNC
     snapshot_script = AMAZON_SNAPSHOT if is_amazon else TAOTIAN_SNAPSHOT
     skip_sync = args.skip_amazon_sync if is_amazon else args.skip_taotian_sync
-    snapshot = args.snapshot_dir / f"{platform}-dashboard-{report_date.isoformat()}.json"
+    date_label = report_date.isoformat() if report_date else "latest"
+    snapshot = args.snapshot_dir / f"{platform}-dashboard-{date_label}.json"
     if skip_sync:
         sync = Step(f"{platform}-sync", "skipped")
     elif is_amazon:
@@ -101,12 +102,18 @@ def platform_pipeline(platform: str, report_date: date, args: argparse.Namespace
         if args.dry_run: command.append("--dry-run")
         sync = run_step("amazon-sync", command, args.command_timeout_seconds)
     else:
-        command = [sys.executable, str(sync_script), "--check-only"] if args.dry_run else [sys.executable, str(sync_script), "--date", report_date.isoformat()]
+        command = [sys.executable, str(sync_script), "--check-only"] if args.dry_run else [sys.executable, str(sync_script)]
+        if report_date and not args.dry_run:
+            command.extend(["--date", report_date.isoformat()])
         sync = run_step("taotian-sync", command, args.command_timeout_seconds)
     steps = [sync]
     if sync.status == "failed":
         return steps + [Step(f"{platform}-snapshot", "skipped", output="sync failed"), Step(f"{platform}-publish", "skipped", output="snapshot unavailable")]
-    snapshot_step = run_step(f"{platform}-snapshot", [sys.executable, str(snapshot_script), "--date", report_date.isoformat(), "--out", str(snapshot)], args.command_timeout_seconds)
+    snapshot_command = [sys.executable, str(snapshot_script)]
+    if report_date:
+        snapshot_command.extend(["--date", report_date.isoformat()])
+    snapshot_command.extend(["--out", str(snapshot)])
+    snapshot_step = run_step(f"{platform}-snapshot", snapshot_command, args.command_timeout_seconds)
     steps.append(snapshot_step)
     steps.append(Step(f"{platform}-publish", "skipped", output="snapshot failed or --skip-publish") if snapshot_step.status == "failed" or args.skip_publish else publish(snapshot, args, f"{platform}-publish"))
     return steps
@@ -126,13 +133,14 @@ def main() -> int:
     parser.add_argument("--dashboard-data", type=Path, default=PROJECT_ROOT / "data/dashboard-data.json")
     args = parser.parse_args()
     if args.preflight: return preflight(args)
-    amazon_date = parse_report_date(args.amazon_date or args.date); taotian_date = parse_taotian_date(args.taotian_date)
+    amazon_date = parse_report_date(args.amazon_date or args.date)
+    taotian_date = parse_taotian_date(args.taotian_date) if args.taotian_date else None
     run_id = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%d-%H%M%S-%f")
     log_dir = PROJECT_ROOT / "logs/cross-platform-dashboard-workflow" / run_id; log_dir.mkdir(parents=True, exist_ok=True); os.chmod(log_dir, 0o700)
     steps: list[Step] = []
     if not args.skip_amazon: steps.extend(platform_pipeline("amazon", amazon_date, args))
     if not args.skip_taotian: steps.extend(platform_pipeline("taotian", taotian_date, args))
-    summary = {"runId": run_id, "amazonReportDate": amazon_date.isoformat(), "taotianReportDate": taotian_date.isoformat(), "dryRun": args.dry_run, "dashboardData": str(args.dashboard_data), "dashboardUrl": os.environ.get("DASHBOARD_PUBLIC_URL", ""), "steps": [asdict(step) for step in steps], "status": "failed" if any(step.status == "failed" for step in steps) else "ok"}
+    summary = {"runId": run_id, "amazonReportDate": amazon_date.isoformat(), "taotianReportDate": taotian_date.isoformat() if taotian_date else "latest-available", "dryRun": args.dry_run, "dashboardData": str(args.dashboard_data), "dashboardUrl": os.environ.get("DASHBOARD_PUBLIC_URL", ""), "steps": [asdict(step) for step in steps], "status": "failed" if any(step.status == "failed" for step in steps) else "ok"}
     atomic_json(log_dir / "summary.json", summary); print(json.dumps(summary, ensure_ascii=False, indent=2))
     return int(summary["status"] == "failed")
 
