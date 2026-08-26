@@ -1,0 +1,20 @@
+[Unit]
+Description=Ulanzi cross-platform weekly report dashboard
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=sdy
+Group=sdy
+WorkingDirectory=/opt/ulanzi/report-dashboard
+ExecStart=/opt/ulanzi/report-dashboard/.venv/bin/python3 -m http.server 4173 --bind 100.111.223.41
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

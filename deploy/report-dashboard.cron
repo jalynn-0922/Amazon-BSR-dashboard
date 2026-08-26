@@ -1,0 +1,1 @@
+0 17 * * 5 /opt/ulanzi/report-dashboard/.agents/workflows/run_sorftime_weekly_cron.sh

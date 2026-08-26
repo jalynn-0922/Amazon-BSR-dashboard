@@ -86,6 +86,8 @@ python3 .agents/workflows/run_sorftime_weekly_workflow.py \
 
 部署路径不同可在服务器本地设置 `DASHBOARD_PROJECT_ROOT`。详细流程见 [每周看板工作流](.agents/workflows/sorftime-weekly-dashboard-workflow.md)。
 
+本仓库在 `deploy/` 中提供当前 Ulanzi 内网服务器使用的 systemd 单元和周五 cron 条目。systemd 服务仅绑定服务器 Tailscale IP 的 `4173` 端口。
+
 ## 数据口径
 
 - 每周五 17:00 统一发布：Amazon 使用最近一个已完成周三；淘天先接收服务商新增数据，再使用目标表最新可用业务日期，兼容服务商延迟推送。
