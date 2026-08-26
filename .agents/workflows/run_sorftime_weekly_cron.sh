@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-PROJECT_ROOT="${DASHBOARD_PROJECT_ROOT:-/opt/ulanzi/report/Amazon-BSR-dashboard}"
-LOCK_FILE="${DASHBOARD_WEEKLY_LOCK_FILE:-/tmp/amazon-bsr-dashboard.lock}"
+PROJECT_ROOT="${DASHBOARD_PROJECT_ROOT:-/opt/ulanzi/report-dashboard}"
+LOCK_FILE="${DASHBOARD_WEEKLY_LOCK_FILE:-/tmp/report-dashboard.lock}"
 PYTHON_BIN="${DASHBOARD_PYTHON_BIN:-$PROJECT_ROOT/.venv/bin/python3}"
 
 cd "$PROJECT_ROOT" || exit 1
