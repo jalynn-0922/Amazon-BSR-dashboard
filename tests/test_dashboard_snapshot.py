@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 
@@ -51,6 +52,34 @@ def test_product_mapping_preserves_price_rank_and_listing_date():
     assert item["price"] == 19.99
     assert item["listingDays"] == 30
     assert item["listedAt"] == "2026-07-20"
+
+
+def test_rank_history_tracks_the_same_asin_and_preserves_missing_weeks(monkeypatch):
+    captured = {}
+
+    def fake_query(_conn, sql):
+        captured["sql"] = sql
+        return [
+            {"bsr_date": date(2026, 8, 5), "bsr_rank": 17},
+            {"bsr_date": date(2026, 8, 19), "bsr_rank": 1},
+        ]
+
+    monkeypatch.setattr(snapshot, "query", fake_query)
+    monkeypatch.setattr(snapshot, "doris_table_ref", lambda: "db.products")
+    history = snapshot.fetch_rank_history(None, "123456", "B000TEST00", "2026-08-19")
+
+    assert history == [None, 17, None, 1]
+    assert "asin = 'B000TEST00'" in captured["sql"]
+    assert "bsr_category_node = '123456'" in captured["sql"]
+
+
+def test_rank_history_rejects_untrusted_identifiers():
+    try:
+        snapshot.fetch_rank_history(None, "123 OR 1=1", "B000TEST00", "2026-08-19")
+    except snapshot.SnapshotError as error:
+        assert "invalid category node" in str(error)
+    else:
+        raise AssertionError("invalid category node must be rejected")
 
 
 def test_preflight_confirms_production_category_mapping():

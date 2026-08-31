@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -27,6 +28,9 @@ OVERVIEW_QUERIES = SKILL_DIR / "agents" / "01-overview" / "queries"
 CATEGORY_QUERIES = SKILL_DIR / "agents" / "02-categories" / "queries"
 ULANZI_QUERIES = SKILL_DIR / "agents" / "03-ulanzi" / "queries"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "staging"
+RANK_HISTORY_WEEKS = 4
+ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
+NODE_ID_RE = re.compile(r"^[0-9]+$")
 
 
 class SnapshotError(ValueError):
@@ -143,6 +147,43 @@ def category_size(conn: Any, node_id: str, report_date: str) -> tuple[int, int]:
     return as_int(row.get("record_count")), as_int(row.get("image_count"))
 
 
+def fetch_rank_history(
+    conn: Any,
+    node_id: str,
+    asin: str,
+    report_date: str,
+    weeks: int = RANK_HISTORY_WEEKS,
+) -> list[int | None]:
+    """Return this exact ASIN's weekly rank, oldest first, without inventing gaps."""
+    if weeks < 1:
+        raise SnapshotError("rank history weeks must be positive")
+    node_id = str(node_id)
+    asin = str(asin).upper()
+    if not NODE_ID_RE.fullmatch(node_id):
+        raise SnapshotError(f"invalid category node for rank history: {node_id!r}")
+    if not ASIN_RE.fullmatch(asin):
+        raise SnapshotError(f"invalid ASIN for rank history: {asin!r}")
+
+    report_day = date.fromisoformat(report_date)
+    dates = [
+        (report_day - timedelta(days=7 * offset)).isoformat()
+        for offset in range(weeks - 1, -1, -1)
+    ]
+    quoted_dates = ", ".join(f"'{value}'" for value in dates)
+    sql = f"""
+        SELECT bsr_date, MIN(bsr_rank) AS bsr_rank
+        FROM {doris_table_ref()}
+        WHERE bsr_category_node = '{node_id}'
+          AND asin = '{asin}'
+          AND bsr_date IN ({quoted_dates})
+        GROUP BY bsr_date
+        ORDER BY bsr_date ASC
+    """
+    rows = query(conn, sql)
+    by_date = {str(row["bsr_date"]): as_int(row.get("bsr_rank")) for row in rows}
+    return [by_date.get(value) for value in dates]
+
+
 def metric_pair(conn: Any, node_id: str, previous_date: str, report_date: str) -> tuple[dict[str, Any], dict[str, Any]]:
     rows = qfile(
         conn,
@@ -246,6 +287,14 @@ def validate_snapshot(week: dict[str, Any]) -> None:
         for item in collection:
             if not item.get("asin") or not item.get("title"):
                 raise SnapshotError("every product requires asin and title")
+    for item in categories:
+        history = item.get("rankHistory")
+        if not isinstance(history, list) or len(history) != RANK_HISTORY_WEEKS:
+            raise SnapshotError(f"{item.get('name')} requires {RANK_HISTORY_WEEKS} rank history points")
+        if any(value is not None and not 1 <= value <= 100 for value in history):
+            raise SnapshotError(f"{item.get('name')} rank history must contain Top100 ranks or null")
+        if history[-1] != item.get("rank"):
+            raise SnapshotError(f"{item.get('name')} latest rank history must match current rank")
 
 
 def build_week(conn: Any, report_date: str) -> dict[str, Any]:
@@ -265,7 +314,14 @@ def build_week(conn: Any, report_date: str) -> dict[str, Any]:
         for leaf in leaves:
             data = fetch_dashboard_category(conn, leaf, previous_date, report_date)
             ulanzi_products = fetch_dashboard_ulanzi(conn, leaf, previous_date, report_date)
-            categories.append(category_product(group, leaf["name"], data["top10"][0], report_date))
+            head = category_product(group, leaf["name"], data["top10"][0], report_date)
+            head["rankHistory"] = fetch_rank_history(
+                conn,
+                leaf["node"],
+                head["asin"],
+                report_date,
+            )
+            categories.append(head)
             movements.extend(movement_product(group, leaf["name"], "上升", row, report_date) for row in data["rising"])
             movements.extend(movement_product(group, leaf["name"], "下降", row, report_date) for row in data["falling"])
             movements.extend(movement_product(group, leaf["name"], "新上榜", row, report_date) for row in data["new"])

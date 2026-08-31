@@ -88,7 +88,8 @@
       const snapshot = selectedWeek.snapshot;
       const categories = snapshot.categories.map((item) => ({
         ...item,
-        rankHistory: runtimeRankHistory(source.weeks, weekIndex, item.name, item.rank || 1),
+        rankHistory: normalizeRankHistory(item.rankHistory)
+          || runtimeRankHistory(source.weeks, weekIndex, item.asin, item.rank || 1),
       }));
       return {
         meta: { ...snapshot.meta, reportDate: selectedWeek.key, previousDate: selectedWeek.previous },
@@ -181,15 +182,18 @@
     return fallback;
   }
 
-  function runtimeRankHistory(weeks, weekIndex, categoryName, fallbackRank) {
+  function normalizeRankHistory(values) {
+    if (!Array.isArray(values) || !values.length) return null;
+    return values.slice(-4).map((rank) => Number.isFinite(rank) && rank >= 1 && rank <= 100 ? rank : null);
+  }
+
+  function runtimeRankHistory(weeks, weekIndex, asin, fallbackRank) {
     const history = weeks
-      .slice(weekIndex, weekIndex + 6)
+      .slice(weekIndex, weekIndex + 4)
       .reverse()
-      .map((item) => item.snapshot?.categories?.find((category) => category.name === categoryName)?.rank)
-      .filter((rank) => Number.isFinite(rank));
-    if (!history.length) return Array(6).fill(fallbackRank);
-    while (history.length < 6) history.unshift(history[0]);
-    return history.slice(-6);
+      .map((item) => item.snapshot?.categories?.find((category) => category.asin === asin)?.rank)
+      .map((rank) => Number.isFinite(rank) ? rank : null);
+    return history.some(Number.isFinite) ? history : [fallbackRank];
   }
 
   function selectedCategories(report) {
@@ -434,7 +438,7 @@
                 <span>评分<strong>${formatRating(item.rating)}</strong></span>
               </div>
               <div class="listing-line">${listingText(item)}</div>
-              <div class="trend-hint"><span class="material-symbols-rounded">show_chart</span>悬停查看近 6 周排名稳定性</div>
+              <div class="trend-hint"><span class="material-symbols-rounded">show_chart</span>悬停查看近 4 周同款排名</div>
             </div>
           </article>`;
       })
@@ -841,11 +845,24 @@
     const item = report.categories.find((category) => category.asin === card.dataset.productId);
     if (!item) return;
     const history = item.rankHistory;
-    const spread = Math.max(...history) - Math.min(...history);
+    const ranked = history.filter(Number.isFinite);
+    const spread = ranked.length > 1 ? Math.max(...ranked) - Math.min(...ranked) : 0;
+    const hasMissing = ranked.length !== history.length;
     els.trendTitle.textContent = item.name;
-    els.trendStability.textContent = spread <= 3 ? "高度稳定" : spread <= 8 ? "相对稳定" : "波动关注";
-    els.trendStability.className = `trend-stability ${spread <= 3 ? "stable" : spread <= 8 ? "steady" : "volatile"}`;
-    els.trendRange.textContent = `#${Math.min(...history)} — #${Math.max(...history)}`;
+    const stability = ranked.length < 2
+      ? ["数据不足", "volatile"]
+      : hasMissing
+        ? ["曾未上榜", "volatile"]
+        : spread <= 3
+          ? ["高度稳定", "stable"]
+          : spread <= 8
+            ? ["相对稳定", "steady"]
+            : ["波动关注", "volatile"];
+    els.trendStability.textContent = stability[0];
+    els.trendStability.className = `trend-stability ${stability[1]}`;
+    els.trendRange.textContent = ranked.length
+      ? `#${Math.min(...ranked)} — #${Math.max(...ranked)}${hasMissing ? " · 含未上榜周" : ""}`
+      : "最近 4 周未上榜";
     drawTrend(history);
     els.trendPopover.hidden = false;
     const rect = card.getBoundingClientRect();
@@ -869,9 +886,10 @@
     ctx.scale(ratio, ratio);
     ctx.clearRect(0, 0, width, height);
     const padding = { left: 28, right: 14, top: 30, bottom: 28 };
-    const min = Math.max(1, Math.min(...values) - 2);
-    const max = Math.max(...values) + 2;
-    const x = (index) => padding.left + (index / (values.length - 1)) * (width - padding.left - padding.right);
+    const ranked = values.filter(Number.isFinite);
+    const min = ranked.length ? Math.max(1, Math.min(...ranked) - 2) : 1;
+    const max = ranked.length ? Math.max(...ranked) + 2 : 100;
+    const x = (index) => padding.left + (index / Math.max(1, values.length - 1)) * (width - padding.left - padding.right);
     const y = (value) => padding.top + ((value - min) / Math.max(1, max - min)) * (height - padding.top - padding.bottom);
     ctx.strokeStyle = "#e4ebe6";
     ctx.lineWidth = 1;
@@ -882,10 +900,30 @@
     ctx.strokeStyle = "#0b6b4b";
     ctx.lineWidth = 3;
     ctx.lineJoin = "round";
+    let drawing = false;
     ctx.beginPath();
-    values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
+    values.forEach((value, index) => {
+      if (!Number.isFinite(value)) {
+        drawing = false;
+        return;
+      }
+      if (drawing) ctx.lineTo(x(index), y(value));
+      else ctx.moveTo(x(index), y(value));
+      drawing = true;
+    });
     ctx.stroke();
     values.forEach((value, index) => {
+      if (!Number.isFinite(value)) {
+        const missingY = height - padding.bottom - 4;
+        ctx.strokeStyle = "#c86c5d"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x(index) - 4, missingY - 4); ctx.lineTo(x(index) + 4, missingY + 4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x(index) + 4, missingY - 4); ctx.lineTo(x(index) - 4, missingY + 4); ctx.stroke();
+        ctx.fillStyle = "#9b5145"; ctx.font = "700 10px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("未上榜", x(index), missingY - 10);
+        ctx.fillStyle = "#68776f"; ctx.font = "11px sans-serif";
+        ctx.fillText(`W-${values.length - index - 1}`, x(index), height - 8);
+        return;
+      }
       ctx.fillStyle = "#fff"; ctx.strokeStyle = "#0b6b4b"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x(index), y(value), 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = "#173d2d"; ctx.font = "700 11px sans-serif"; ctx.textAlign = "center";
